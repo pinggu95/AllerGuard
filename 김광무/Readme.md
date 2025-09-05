@@ -6,3 +6,5 @@
 * 20250904_SEMI_Qwen2.5VLM_OCR처리_2.5재시도.ipynb : 알고보니 위 파일은 2.5가 아닌 2로 돌린 결과라서 2.5로 수정후 다시돌림 ocr25.txt 생성
 * diff_sh.sh : Qwen2와 Qwen2.5의 생성 내용 비교용 shell script
 * diff_results.log : diff 결과 2.5가 인식 결과가 좋음
+* 20250905_SEMI_Qwen2.5_VLM_OCR처리_개선.ipynb : OCR 처리 결과를 바로 19개 분류하려고 했으나 실패한 버전
+* 20250905_SEMI_Qwen2.5_VLM_OCR처리_개선2.ipynb : OCR 처리 결과를 원재료명과 혼입,같은제조공정 으로 매끄럽게 다듦은 버전
