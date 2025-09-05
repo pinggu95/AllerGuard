@@ -8,3 +8,4 @@
 * diff_results.log : diff 결과 2.5가 인식 결과가 좋음
 * 20250905_SEMI_Qwen2.5_VLM_OCR처리_개선.ipynb : OCR 처리 결과를 바로 19개 분류하려고 했으나 실패한 버전
 * 20250905_SEMI_Qwen2.5_VLM_OCR처리_개선2.ipynb : OCR 처리 결과를 원재료명과 혼입,같은제조공정 으로 매끄럽게 다듦은 버전
+* 20250905_SEMI_Qwen2.5_VLM_식품성분분류.ipynb : OCR추출된 new.txt 파일을 기반으로 알러지유발 원재료명을 19가지로 분류하는 프롬프트 적용 코드 파일은 _new_result.txt로 생성
