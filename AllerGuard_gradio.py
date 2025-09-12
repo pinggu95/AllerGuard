@@ -274,7 +274,7 @@ def filter_caution(query, warn_items):
 # ===============================
 # UI
 # ===============================
-with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_CSS, theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_CSS, theme=gr.themes.Citrus()) as demo:
     gr.HTML("""
       <div class="headerbar">
         <div class="title">식품 알레르기 감지</div>
@@ -337,3 +337,4 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
 
 if __name__ == "__main__":
     demo.queue().launch(server_name="127.0.0.1", server_port=7860, share=False, inbrowser=True)
+
