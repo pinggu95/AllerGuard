@@ -79,7 +79,7 @@ KB_CSV_PATH = r"C:\\Users\\MYNOTE\\AllerGuard\\domestic_allergy_rag_knowledge_10
 
 
 # GCP Vision Key
-KEY_JSON_PATH = os.environ.get("GCP_VISION_KEY_PATH", r"   GCP OCR .JSON")
+KEY_JSON_PATH = os.environ.get("GCP_VISION_KEY_PATH", r"D:\key folder\ocr-project-470906-7ffeebabeb09.json")
 
 EMBEDDING_MODEL_NAME = "distiluse-base-multilingual-cased-v1"
 NLI_MODEL_NAME = "joeddav/xlm-roberta-large-xnli"
@@ -95,7 +95,7 @@ print(f"ℹ️ RAG 임계값={RAG_CONFIDENCE_THRESHOLD}, NLI 임계값={NLI_FALL
 print(f"ℹ️ API 파서 모드: {USE_API_PARSER}")
 
 # --- Gemini API 키 탐색 도우미 ---
-HARDCODED_GEMINI_API_KEY = "   GEMINI API KEY      "  # ❗ 보안상 빈 문자열 유지. 키는 환경변수로 넣으세요.
+HARDCODED_GEMINI_API_KEY = "AIzaSyDMTVeVGPU374hlJWEGhxB902f-RxkRVSU"  # ❗ 보안상 빈 문자열 유지. 키는 환경변수로 넣으세요.
 
 def _get_gemini_api_key():
     # 0) 코드에 직접 입력된 키 (권장X)
@@ -691,7 +691,7 @@ if __name__ == "__main__":
         print(f"[SELF-CHECK] 실패: {e}")
 
     # 예시 이미지 경로
-    test_image = os.environ.get("ALLER_GUARD_TEST_IMAGE", r"C:\\Users\\MYNOTE\\AllerGuard\\Data\\김광무_121.jpg")
+    test_image = os.environ.get("ALLER_GUARD_TEST_IMAGE", r"C:\\Users\\MYNOTE\\AllerGuard\\Data\\김광무_118.jpg")
     if not os.path.exists(test_image):
         print(f"⚠️ 테스트 이미지가 존재하지 않습니다: {test_image}")
     test_input = {"image_path": test_image}
