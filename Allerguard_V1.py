@@ -127,7 +127,7 @@ def call_gcp_vision_api(state: AllergyGraphState) -> AllergyGraphState:
             raise Exception(f"GCP API Error: {response.error.message}")
 
         raw_text = response.full_text_annotation.text
-        print(f"✅ GCP OCR 성공. (추출된 텍스트 길이: {len(raw_text)})")
+        print(f"✅ GCP OCR 성공. (추출된 텍스트 길이: {len(raw_text)}=추춡텍스트[{raw_text}])")
         return {**state, "raw_ocr_text": raw_text}
     
     except Exception as e:
@@ -548,4 +548,5 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 #     print(final_state['final_output_json'])
 
 # else:
+
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
