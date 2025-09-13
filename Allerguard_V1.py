@@ -18,6 +18,10 @@ from google.oauth2 import service_account  # 👈 직접 인증을 위한 라이
 from langgraph.graph import StateGraph, END
 from dotenv import load_dotenv # 👈 .env 파일을 위한 라이브러리 임포트
 
+# for llm library
+from langchain_core.prompts import PromptTemplate
+from langchain_openai import ChatOpenAI
+
 # .env 파일에서 환경 변수를 로드합니다.
 load_dotenv()
 
@@ -39,6 +43,76 @@ IGNORE_KEYWORDS = set([
     '포화지방', '트랜스지방', '내용량', 'I', 'II' # (빈 문자열 '' 제거된 상태)
 ])
 print(f"✅ 비-성분 필터 키워드 {len(IGNORE_KEYWORDS)}개 로드 완료.")
+
+
+template_for_extract = """
+주어진 텍스트 내용을 확인해서 원재료명과 혼입가능 혹은 같은제조시설에서 사용되는 재료를 분류해주세요.
+원재료명 내에서 중복되는 항목은 제거하고 해당되는 내용이 없으면 '없음' 이라고 답해주세요
+혼입가능 혹은 같은제조시설에서 사용되는 재료중 중복되는 항목은 제거하고 해당되는 내용이 없으면 '없음' 이라고 답해주세요
+재료한개당 한줄에 작성해주세요.
+다음 JSON 포맷 에 맞게 정리해주세요.
+
+----
+원문 텍스트:
+{raw_text}
+----
+
+----
+[JSON 포맷]
+{{
+  "원재료명": [],
+  "혼입가능": []
+}}
+
+혼입가능,같은제조시설:
+----
+
+#Answer:
+"""
+
+template_for_allergen = """
+주어진 원문 텍스트에 해당하는 식재료 성분에 알러지 유발 가능성분 있으면 '있음', 없다면 '없음' 이라고 답해주세요
+'있음','없음' 이외의 답변은 하지마세요
+
+----
+원문 텍스트:
+{raw_text}
+----
+
+#Answer:
+"""
+
+def text_parser_by_llm(raw_text):
+    res = chain_for_extract.invoke({"raw_text":raw_text})
+    print(f"text_parser_by_llm result =>\n{res.content}")
+
+    ingredient_queue = []
+    found_allergens_set = set()
+
+
+    # json.loads() 함수를 이용해 문자열을 파이썬 딕셔너리로 변환
+    json_data = json.loads(res.content)    
+    #json_data = json.loads(test_ing)     # for testing
+    
+    
+    # 딕셔너리의 키-값 쌍을 반복합니다.
+    for key, value in json_data.items():
+        # '없음'을 포함하지 않는 재료만 필터링합니다.
+        filtered_ingredients = [ingredient for ingredient in value if ingredient != "없음"]
+
+        # 만약 필터링된 재료 리스트가 비어있지 않다면 출력합니다.
+        if filtered_ingredients:
+            print(f"* {key} : ")
+            for ingredient in filtered_ingredients:
+                if ingredient not in IGNORE_KEYWORDS:
+                    ingredient_queue.append(ingredient) 
+                
+                if ingredient in ALLERGENS_STD_SET:
+                    print(f"  -> '{ingredient}'은(는) 표준 알레르기이므로 final_set에 직접 추가.")
+                    found_allergens_set.add(ingredient) 
+                
+    
+    return ingredient_queue, found_allergens_set
 
 
 # --- 1. 글로벌 설정: 모델 로드 및 RAG 지식 베이스 캐시 로드 ---
@@ -82,6 +156,21 @@ try:
             kb_categories = json.load(f) 
     
     print(f"✅ RAG 지식 베이스 캐시 로드 완료 ({len(kb_categories)}개 항목)")
+    
+    
+    prompt_for_extract = PromptTemplate.from_template(template_for_extract)
+    print("prompt_for_extract=",prompt_for_extract)
+
+
+    llm = ChatOpenAI(
+        temperature=0,
+        model_name="gpt-4.1",  # 모델명
+    )
+
+    # chain 생성
+    chain_for_extract = prompt_for_extract | llm    
+    
+    print(f"✅ LLM chain 생성 완료)")
 
 except Exception as e:
     print(f"❌ 치명적 오류: 글로벌 설정 실패: {e}")
@@ -106,9 +195,18 @@ class AllergyGraphState(TypedDict):
     rag_result: dict
     final_allergens: Set[str]
     final_output_json: str
-
+    # 추가부분
+    final_error_msg: List[str]  # 에러메시지용
+    text_parser: str
 
 # --- 3. LangGraph 노드 함수 정의 ---
+
+def append_error_msg(state: AllergyGraphState, new_error_message):
+    existing_errors = state.get("final_error_msg", [])
+    
+    existing_errors.append(new_error_message)
+    
+    return existing_errors
 
 def call_gcp_vision_api(state: AllergyGraphState) -> AllergyGraphState:
     """
@@ -133,19 +231,9 @@ def call_gcp_vision_api(state: AllergyGraphState) -> AllergyGraphState:
     except Exception as e:
         print(f"❌ GCP Vision API 처리 실패: {e}")
         return {**state, "raw_ocr_text": ""}
-
-
-def parse_text_from_raw(state: AllergyGraphState) -> AllergyGraphState:
-    """
-    ✅ 노드 2 (Regex 파서 노드)
-    (startswith 필터 로직이 적용된 최종 수정 버전)
-    """
-    print(f"\n--- (Node 2: parse_text_from_raw) [Regex Parser] ---")
-    raw_text = state['raw_ocr_text']
-    if not raw_text or not raw_text.strip():
-        print("ℹ️ OCR 텍스트가 비어있어 파싱을 건너뜁니다.")
-        return {**state, "ingredients_to_check": [], "final_allergens": set()}
-
+    
+    
+def text_parser_by_regex(raw_text):
     clean_text = raw_text.replace("\n", " ")
 
     ingredient_queue = []
@@ -191,6 +279,45 @@ def parse_text_from_raw(state: AllergyGraphState) -> AllergyGraphState:
                 found_allergens_set.add(item) 
     else:
         print("ℹ️ Regex 파서: '...함유' 섹션을 찾지 못함.")
+    
+    return ingredient_queue, found_allergens_set
+
+
+def parse_text_from_raw(state: AllergyGraphState) -> AllergyGraphState:
+    """
+    ✅ 노드 2 (Regex 파서 노드)
+    (startswith 필터 로직이 적용된 최종 수정 버전)
+    """
+    text_parser = state.get('text_parser', None)
+        
+    print(f"\n--- (Node 2: parse_text_from_raw) ==> [{text_parser}] ---")
+    raw_text = state['raw_ocr_text']
+    if not raw_text or not raw_text.strip():
+        error_message = "ℹ️ OCR 텍스트가 비어있어 파싱을 건너뜁니다."
+        print(error_message)
+        return {**state, 
+                "ingredients_to_check": [], 
+                "final_allergens": set(),
+                "final_error_msg":append_error_msg(state, error_message),
+                }
+
+    params = (raw_text, )
+    
+    if not text_parser:
+        print(f"\n--- (Node 2: parse_text_from_raw) [Regex Parser] ---")
+        ingredient_queue, found_allergens_set = text_parser_by_regex(*params)
+    elif text_parser in globals():
+        print(f"\n--- (Node 2: parse_text_from_raw) [{text_parser}] ---")
+        ingredient_queue, found_allergens_set = globals()[text_parser](*params)
+    else:
+        error_message = f"선택한 text_parser={text_parser}가 존재하지 않습니다."
+        print(error_message)
+        return {**state, 
+                "ingredients_to_check": [], 
+                "final_allergens": set(),
+                "final_error_msg":append_error_msg(state, error_message),
+                }
+
 
     final_queue = sorted(list(set(ingredient_queue)))
     print(f"==> 최종 RAG 검사 큐 (중복제거, {len(final_queue)}개): {final_queue}")
