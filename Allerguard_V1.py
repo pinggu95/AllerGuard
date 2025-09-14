@@ -109,7 +109,7 @@ def text_parser_by_llm(raw_text):
                 
                 if ingredient in ALLERGENS_STD_SET:
                     print(f"  -> '{ingredient}'은(는) 표준 알레르기이므로 final_set에 직접 추가.")
-                    found_allergens_set.add(ingredient) 
+                    found_allergens_set.add(ingredient + " -> " + ingredient) 
                 
     
     return ingredient_queue, found_allergens_set
@@ -276,7 +276,7 @@ def text_parser_by_regex(raw_text):
             
             if item in ALLERGENS_STD_SET:
                 print(f"  -> '{item}'은(는) 표준 알레르기이므로 final_set에 직접 추가.")
-                found_allergens_set.add(item) 
+                found_allergens_set.add(item + " -> " + item) 
     else:
         print("ℹ️ Regex 파서: '...함유' 섹션을 찾지 못함.")
     
@@ -519,7 +519,7 @@ def update_final_list(state: AllergyGraphState) -> AllergyGraphState:
     if result_allergen in ALLERGENS_STD_SET:
         current_set = state['final_allergens']
         print(f"✅ 유효한 알레르기 발견: '{result_allergen}'. 최종 목록에 추가.")
-        current_set.add(result_allergen)
+        current_set.add(state['current_ingredient'] + " -> " + result_allergen)
         return {**state, "final_allergens": current_set}
     else:
         print(f"ℹ️ '{result_allergen}'은(는) 표준 알레르기 항목이 아니므로 무시합니다.")
@@ -677,3 +677,4 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # else:
 
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
+
