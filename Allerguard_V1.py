@@ -47,6 +47,7 @@ print(f"✅ 비-성분 필터 키워드 {len(IGNORE_KEYWORDS)}개 로드 완료.
 
 template_for_extract = """
 주어진 텍스트 내용을 확인해서 원재료명과 혼입가능 혹은 같은제조시설에서 사용되는 재료를 분류해주세요.
+소괄호,중괄호,대괄호는 공백 문자로 인식하고 처리해주세요.
 원재료명 내에서 중복되는 항목은 제거하고 해당되는 내용이 없으면 '없음' 이라고 답해주세요
 혼입가능 혹은 같은제조시설에서 사용되는 재료중 중복되는 항목은 제거하고 해당되는 내용이 없으면 '없음' 이라고 답해주세요
 재료한개당 한줄에 작성해주세요.
@@ -83,7 +84,9 @@ template_for_allergen = """
 """
 
 def text_parser_by_llm(raw_text):
-    res = chain_for_extract.invoke({"raw_text":raw_text})
+    clean_text = raw_text.replace("\n", " ")
+    
+    res = chain_for_extract.invoke({"raw_text":clean_text})
     print(f"text_parser_by_llm result =>\n{res.content}")
 
     ingredient_queue = []
@@ -677,4 +680,5 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # else:
 
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
+
 
