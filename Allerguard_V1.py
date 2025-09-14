@@ -72,13 +72,36 @@ template_for_extract = """
 """
 
 template_for_allergen = """
-주어진 원문 텍스트에 해당하는 식재료 성분에 알러지 유발 가능성분 있으면 '있음', 없다면 '없음' 이라고 답해주세요
+주어진 원문 텍스트에 해당하는 식재료에 대해서 아래 알러지분류에 따라 19가지 중 한가지 분류해주세요, 없다면 '없음' 이라고 답해주세요
 '있음','없음' 이외의 답변은 하지마세요
 
 ----
 원문 텍스트:
 {raw_text}
 ----
+
+----
+알러지분류:
+"알류"
+"우유"
+"메밀"
+"땅콩"
+"대두"
+"밀"
+"잣"
+"호두"
+"게"
+"새우"
+"오징어"
+"고등어"
+"조개류"
+"복숭아"
+"토마토"
+"닭고기"
+"돼지고기"
+"쇠고기"
+"아황산류"
+-----
 
 #Answer:
 """
@@ -164,6 +187,8 @@ try:
     prompt_for_extract = PromptTemplate.from_template(template_for_extract)
     print("prompt_for_extract=",prompt_for_extract)
 
+    prompt_for_allergen = PromptTemplate.from_template(template_for_allergen)
+    print("prompt_for_allergen=",prompt_for_allergen)    
 
     llm = ChatOpenAI(
         temperature=0,
@@ -171,7 +196,8 @@ try:
     )
 
     # chain 생성
-    chain_for_extract = prompt_for_extract | llm    
+    chain_for_extract = prompt_for_extract | llm
+    chain_for_allergen = prompt_for_allergen | llm  
     
     print(f"✅ LLM chain 생성 완료)")
 
@@ -479,6 +505,8 @@ def search_and_update_kb(state: AllergyGraphState) -> AllergyGraphState:
             }])
             new_entry_df.to_csv(RAG_KNOWLEDGE_BASE_CSV, mode='a', header=False, index=False, encoding='utf-8-sig')
             print(f"✅ 지식 베이스 '{RAG_KNOWLEDGE_BASE_CSV}'에 '{ingredient}' -> '{found_category}' 정보 추가 완료!")
+
+            return {**state, "rag_result": {"confidence": 0.0, "found_allergen": found_category}}        
         except Exception as e:
             print(f"❌ CSV 파일에 쓰는 중 오류 발생: {e}")
     else:
@@ -680,5 +708,6 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # else:
 
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
+
 
 
