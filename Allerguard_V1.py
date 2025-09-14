@@ -72,8 +72,9 @@ template_for_extract = """
 """
 
 template_for_allergen = """
-주어진 원문 텍스트에 해당하는 식재료에 대해서 아래 알러지분류에 따라 19가지 중 한가지 분류해주세요, 없다면 '없음' 이라고 답해주세요
-'있음','없음' 이외의 답변은 하지마세요
+당신은 식재료 성분을 판별하는 전문가입니다. 아주 신중하게 답해주세요
+주어진 원문 텍스트에 해당하는 아래 식재료분류에 따라 19가지중 하나로 분류해서 응답하되 19가지에 해당되지 않으면 '그외'로 답변해주세요
+위에 지시한 답변 내용말고는 아무것도 답변하지마세요
 
 ----
 원문 텍스트:
@@ -81,7 +82,7 @@ template_for_allergen = """
 ----
 
 ----
-알러지분류:
+식재료분류:
 "알류"
 "우유"
 "메밀"
@@ -227,6 +228,7 @@ class AllergyGraphState(TypedDict):
     # 추가부분
     final_error_msg: List[str]  # 에러메시지용
     text_parser: str
+    using_llm_api_chk: bool     # llm 분류 api 사용
 
 # --- 3. LangGraph 노드 함수 정의 ---
 
@@ -471,27 +473,40 @@ def search_and_update_kb(state: AllergyGraphState) -> AllergyGraphState:
         print(f"  -> 지식 베이스 파일 '{RAG_KNOWLEDGE_BASE_CSV}'을(를) 찾을 수 없어, 분류를 진행할 수 없습니다.")
         return state
 
-    # ✨ [개선 2] LLM 대신, 각 카테고리와 조합하여 연관성을 검색합니다.
     found_category = None
-    service = build("customsearch", "v1", developerKey=API_KEY)
-
-    for category in existing_categories:
-        try:
-            # 좀 더 정확한 연관성을 찾기 위해 '원료', '유래' 등의 키워드를 함께 검색
-            search_query = f"'{ingredient}' '{category}' 원료 유래"
-            print(f"  -> '{category}' 카테고리와의 연관성을 검색합니다... (쿼리: {search_query})")
-            
-            response = service.cse().list(q=search_query, cx=SEARCH_ENGINE_ID, num=1).execute()
-            
-            # 검색 결과가 하나라도 있으면 해당 카테고리와 관련이 있다고 판단
-            if response.get('items'):
-                print(f"  -> 분석 결과: '{ingredient}'은(는) '{category}' 카테고리와 연관성이 높습니다.")
-                found_category = category
-                break # 가장 먼저 찾아낸 카테고리로 확정하고 루프 종료
+    if state['using_llm_api_chk']:
+        ## check가 된 경우 llm api를 분류에 이용해본다
+        res = chain_for_allergen.invoke({"raw_text":ingredient})
+        result_allergen = res.content
+        print(f"chain_for_allergen result_allergen =>\n{result_allergen}")
         
-        except Exception as e:
-            print(f"  -> 검색 중 오류 발생 (카테고리: {category}): {e}")
-            continue # 특정 카테고리 검색에 실패해도 다음 카테고리로 계속 진행
+        if result_allergen in ALLERGENS_STD_SET:
+            found_category = result_allergen
+        else:
+            #그외 응답이오면 검색을 해본다
+            #일단 스텝2
+            print("TODO")
+    else:
+        # ✨ [개선 2] LLM 대신, 각 카테고리와 조합하여 연관성을 검색합니다.
+        service = build("customsearch", "v1", developerKey=API_KEY)
+
+        for category in existing_categories:
+            try:
+                # 좀 더 정확한 연관성을 찾기 위해 '원료', '유래' 등의 키워드를 함께 검색
+                search_query = f"'{ingredient}' '{category}' 원료 유래"
+                print(f"  -> '{category}' 카테고리와의 연관성을 검색합니다... (쿼리: {search_query})")
+                
+                response = service.cse().list(q=search_query, cx=SEARCH_ENGINE_ID, num=1).execute()
+                
+                # 검색 결과가 하나라도 있으면 해당 카테고리와 관련이 있다고 판단
+                if response.get('items'):
+                    print(f"  -> 분석 결과: '{ingredient}'은(는) '{category}' 카테고리와 연관성이 높습니다.")
+                    found_category = category
+                    break # 가장 먼저 찾아낸 카테고리로 확정하고 루프 종료
+            
+            except Exception as e:
+                print(f"  -> 검색 중 오류 발생 (카테고리: {category}): {e}")
+                continue # 특정 카테고리 검색에 실패해도 다음 카테고리로 계속 진행
 
     # ✨ [개선 3] 찾아낸 카테고리가 있을 경우에만 KB를 업데이트합니다.
     if found_category:
@@ -708,6 +723,7 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # else:
 
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
+
 
 
 
