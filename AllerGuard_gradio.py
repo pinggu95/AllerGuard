@@ -288,7 +288,7 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
                 gr.Markdown("<div class='section-title'><span class='dot'></span>입력</div>")
                 inp = gr.Image(type="pil", label="성분표 이미지 업로드", height=360)
                 do_mirror_chk = gr.Checkbox(label="좌우반전(미러) 보정", value=False)
-                auto_mirror_chk = gr.Checkbox(label="자동 미러 감지(원본/반전 비교, 2회 실행)", value=True)
+                auto_mirror_chk = gr.Checkbox(label="자동 미러 감지(원본/반전 비교, 2회 실행)", value=False)
                 with gr.Row():
                     run_btn_by_regex = gr.Button("분석 실행(REGEX)", elem_id="run_btn_by_regex", elem_classes=["run_btn"])
                     # 새로운 버튼 추가
@@ -349,5 +349,6 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
 
 if __name__ == "__main__":
     demo.queue().launch(server_name="127.0.0.1", server_port=7860, share=False, inbrowser=True)
+
 
 
