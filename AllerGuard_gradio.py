@@ -49,13 +49,13 @@ html, body, .gradio-container { background: var(--bg) !important; color: var(--t
 .summary .left{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .badge{ display:inline-block; padding:6px 10px; border-radius:999px; font-size:12.5px; font-weight:900;
   background:#e6f5ef; color:var(--brand); border:1px solid #cbeedf; }
-.badge.danger{ background:#fee2e2; color:var(--danger); border-color:#fecaca; }
-.badge.safe  { background:#dcfce7; color:var(--safe);   border-color:#bbf7d0; }
-.badge.warn  { background:#ffedd5; color:var(--warn);   border-color:#fdba74; }
-.state-text-danger{ color:var(--danger); font-weight:900; }
-.state-text-warn  { color:var(--warn);   font-weight:900; }
-.state-text-safe  { color:var(--safe);   font-weight:900; }
-.state-text-ok    { color:var(--brand);  font-weight:900; }
+.badge.danger{ background:#fee2e2; color:#dc2626; border-color:#fecaca; }
+.badge.safe  { background:#dcfce7; color:#059669; border-color:#bbf7d0; }
+.badge.warn  { background:#ffedd5; color:#f97316; border-color:#fdba74; }
+.state-text-danger{ color:#dc2626; font-weight:900; }
+.state-text-warn  { color:#f97316; font-weight:900; }
+.state-text-safe  { color:#059669; font-weight:900; }
+.state-text-ok    { color:#10a37f; font-weight:900; }
 .pills{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
 .pill{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px;
   background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; font-weight:700; font-size:13px; }
@@ -120,23 +120,47 @@ def safe_load_allergen_list(final_json_str_or_obj):
         return []
     return []
 
+# ===============================
+# A안: "원재료 -> 알레르겐" 패턴 파싱(권장)
+# ===============================
 def build_categories(final_allergens, ingredients, rag_hits, nli_hits,
-                     rag_warn_low=0.65, rag_warn_high=0.85, nli_warn_low=0.30, nli_warn_high=0.50):
-    danger_allergens = [a for a in final_allergens if a in ALLERGENS_STD_SET]
+                     rag_warn_low=0.65, rag_warn_high=0.85,
+                     nli_warn_low=0.30, nli_warn_high=0.50):
+
+    danger_allergens = []
+    mapped_ingredients = set()
+
+    # 1) 최종 JSON 정규화: "원재료 -> 알레르겐" 문자열도 해석
+    for a in (final_allergens or []):
+        if isinstance(a, str) and "->" in a:
+            src, dst = [s.strip() for s in a.split("->", 1)]
+            if dst in ALLERGENS_STD_SET:
+                danger_allergens.append(dst)
+                mapped_ingredients.add(src)  # 안전 목록에서 제외
+        elif a in ALLERGENS_STD_SET:
+            danger_allergens.append(a)
+
+    # 중복 제거(순서 보존)
+    danger_allergens = list(dict.fromkeys(danger_allergens))
+
+    # 2) 주의(경고) 후보
     warn_from_rag = []
-    for ing, sim, al in rag_hits:
+    for ing, sim, al in (rag_hits or []):
         if al in ALLERGENS_STD_SET and rag_warn_low <= sim < rag_warn_high:
             warn_from_rag.append(f"{ing} → {al} (유사도 {sim:.2f})")
+
     warn_from_nli = []
-    for ing, score, label in nli_hits:
+    for ing, score, label in (nli_hits or []):
         if label in ALLERGENS_STD_SET and nli_warn_low <= score < nli_warn_high:
-            warn_from_nli.append(f"{ ing } → { label } (NLI { score:.2f })")
+            warn_from_nli.append(f"{ing} → {label} (NLI {score:.2f})")
+
     warn_items = warn_from_rag + warn_from_nli
 
-    used_ingredients = set()
-    used_ingredients.update([i.split(" → ")[0] for i in warn_items])
-    used_ingredients.update([i for i in ingredients if i in danger_allergens])
-    safe_items = [i for i in ingredients if i not in used_ingredients]
+    # 3) 안전 항목 계산 (이미 위험/주의에 쓰인 원재료 제외)
+    used_ingredients = set(mapped_ingredients)
+    used_ingredients.update([i.split(" → ")[0].strip() for i in warn_items if "→" in i])
+    safe_items = [i for i in (ingredients or []) if i not in used_ingredients]
+
     return danger_allergens, warn_items, safe_items
 
 def _build_pills(items, cls=""):
@@ -152,7 +176,7 @@ def _build_pills(items, cls=""):
 # ===== (신규) 더 잘 읽힌 쪽 선택 스코어러 =====
 def _score_run(final_allergens, ingredients):
     # 성분 토큰 수 + (확정 알레르겐 수 * 2) 가중치
-    return len(ingredients) * 1.0 + len([a for a in final_allergens if a in ALLERGENS_STD_SET]) * 2.0
+    return len(ingredients) * 1.0 + len([a for a in final_allergens if (isinstance(a,str) and a in ALLERGENS_STD_SET)]) * 2.0
 
 # ===============================
 # 메인 핸들러 (자동/수동 미러 보정 포함)
@@ -292,7 +316,6 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
                 using_llm_api_chk = gr.Checkbox(label="원재료 19종 분류(LLM API)", value=False)
                 with gr.Row():
                     run_btn_by_regex = gr.Button("분석 실행(REGEX)", elem_id="run_btn_by_regex", elem_classes=["run_btn"])
-                    # 새로운 버튼 추가
                     run_btn_by_llmapi = gr.Button("분석 실행(LLM API)", elem_id="run_btn_by_llmapi", elem_classes=["run_btn"])
                     parser_type_by_regex = gr.Textbox(value="text_parser_by_regex", visible=False)
                     parser_type_by_llm = gr.Textbox(value="text_parser_by_llm", visible=False)
@@ -350,7 +373,3 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
 
 if __name__ == "__main__":
     demo.queue().launch(server_name="127.0.0.1", server_port=7860, share=False, inbrowser=True)
-
-
-
-
