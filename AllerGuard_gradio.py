@@ -157,7 +157,7 @@ def _score_run(final_allergens, ingredients):
 # ===============================
 # 메인 핸들러 (자동/수동 미러 보정 포함)
 # ===============================
-def analyze_image(img: Image.Image, do_mirror: bool, auto_mirror: bool, parser_type:str):
+def analyze_image(img: Image.Image, do_mirror: bool, auto_mirror: bool, using_llm_api_chk: bool, parser_type:str):
     try:
         if img is None:
             status = ("<div class='summary'>"
@@ -178,7 +178,7 @@ def analyze_image(img: Image.Image, do_mirror: bool, auto_mirror: bool, parser_t
                 img.convert("RGB").save(tmp1.name, "JPEG")
                 path1 = tmp1.name
             with redirect_stdout(sio1):
-                state1 = Allerguard_V1.app.invoke({"image_path": path1,"text_parser":parser_type,}, {"recursion_limit": 2000})
+                state1 = Allerguard_V1.app.invoke({"image_path": path1,"using_llm_api_chk":using_llm_api_chk,"text_parser":parser_type,}, {"recursion_limit": 2000})
             logs1 = sio1.getvalue().strip()
             fj1 = state1.get("final_output_json", "[]")
             fa1 = safe_load_allergen_list(fj1)
@@ -192,7 +192,7 @@ def analyze_image(img: Image.Image, do_mirror: bool, auto_mirror: bool, parser_t
                 img_m.convert("RGB").save(tmp2.name, "JPEG")
                 path2 = tmp2.name
             with redirect_stdout(sio2):
-                state2 = Allerguard_V1.app.invoke({"image_path": path2,"text_parser":parser_type,}, {"recursion_limit": 2000})
+                state2 = Allerguard_V1.app.invoke({"image_path": path2,"using_llm_api_chk":using_llm_api_chk,"text_parser":parser_type,}, {"recursion_limit": 2000})
             logs2 = sio2.getvalue().strip()
             fj2 = state2.get("final_output_json", "[]")
             fa2 = safe_load_allergen_list(fj2)
@@ -217,7 +217,7 @@ def analyze_image(img: Image.Image, do_mirror: bool, auto_mirror: bool, parser_t
 
             sio = io.StringIO()
             with redirect_stdout(sio):
-                state = Allerguard_V1.app.invoke({"image_path": tmp_path,"text_parser":parser_type,}, {"recursion_limit": 2000})
+                state = Allerguard_V1.app.invoke({"image_path": tmp_path,"using_llm_api_chk":using_llm_api_chk,"text_parser":parser_type,}, {"recursion_limit": 2000})
             raw_logs = sio.getvalue().strip()
 
             final_json = state.get("final_output_json", "[]")
@@ -289,6 +289,7 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
                 inp = gr.Image(type="pil", label="성분표 이미지 업로드", height=360)
                 do_mirror_chk = gr.Checkbox(label="좌우반전(미러) 보정", value=False)
                 auto_mirror_chk = gr.Checkbox(label="자동 미러 감지(원본/반전 비교, 2회 실행)", value=False)
+                using_llm_api_chk = gr.Checkbox(label="원재료 19종 분류(LLM API)", value=False)
                 with gr.Row():
                     run_btn_by_regex = gr.Button("분석 실행(REGEX)", elem_id="run_btn_by_regex", elem_classes=["run_btn"])
                     # 새로운 버튼 추가
@@ -329,14 +330,14 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
 
     run_btn_by_regex.click(
         fn=analyze_image,
-        inputs=[inp, do_mirror_chk, auto_mirror_chk, parser_type_by_regex],
+        inputs=[inp, do_mirror_chk, auto_mirror_chk, using_llm_api_chk, parser_type_by_regex],
         outputs=[status_html, danger_html, warn_html, safe_html, json_view, log_view, warn_state],
         api_name="analyze"
     )
     
     run_btn_by_llmapi.click(
         fn=analyze_image,
-        inputs=[inp, do_mirror_chk, auto_mirror_chk, parser_type_by_llm],
+        inputs=[inp, do_mirror_chk, auto_mirror_chk, using_llm_api_chk, parser_type_by_llm],
         outputs=[status_html, danger_html, warn_html, safe_html, json_view, log_view, warn_state],
         api_name="analyze"
     )
@@ -349,6 +350,7 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
 
 if __name__ == "__main__":
     demo.queue().launch(server_name="127.0.0.1", server_port=7860, share=False, inbrowser=True)
+
 
 
 
