@@ -124,19 +124,20 @@ def text_parser_by_llm(raw_text):
     
     # 딕셔너리의 키-값 쌍을 반복합니다.
     for key, value in json_data.items():
-        # '없음'을 포함하지 않는 재료만 필터링합니다.
-        filtered_ingredients = [ingredient for ingredient in value if ingredient != "없음"]
+        if key == '원재료명':
+            # '없음'을 포함하지 않는 재료만 필터링합니다.
+            filtered_ingredients = [ingredient for ingredient in value if ingredient != "없음"]
 
-        # 만약 필터링된 재료 리스트가 비어있지 않다면 출력합니다.
-        if filtered_ingredients:
-            print(f"* {key} : ")
-            for ingredient in filtered_ingredients:
-                if ingredient not in IGNORE_KEYWORDS:
-                    ingredient_queue.append(ingredient) 
-                
-                if ingredient in ALLERGENS_STD_SET:
-                    print(f"  -> '{ingredient}'은(는) 표준 알레르기이므로 final_set에 직접 추가.")
-                    found_allergens_set.add(ingredient + " -> " + ingredient) 
+            # 만약 필터링된 재료 리스트가 비어있지 않다면 출력합니다.
+            if filtered_ingredients:
+                print(f"* {key} : ")
+                for ingredient in filtered_ingredients:
+                    if ingredient not in IGNORE_KEYWORDS:
+                        ingredient_queue.append(ingredient) 
+                    
+                    if ingredient in ALLERGENS_STD_SET:
+                        print(f"  -> '{ingredient}'은(는) 표준 알레르기이므로 final_set에 직접 추가.")
+                        found_allergens_set.add(ingredient + " -> " + ingredient) 
                 
     
     return ingredient_queue, found_allergens_set
@@ -754,6 +755,7 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # else:
 
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
+
 
 
 
