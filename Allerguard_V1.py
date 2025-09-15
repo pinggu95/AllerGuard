@@ -21,6 +21,7 @@ from dotenv import load_dotenv # 👈 .env 파일을 위한 라이브러리 임�
 # for llm library
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
+from langchain_community.tools import TavilySearchResults
 
 # .env 파일에서 환경 변수를 로드합니다.
 load_dotenv()
@@ -103,6 +104,26 @@ template_for_allergen = """
 "쇠고기"
 "아황산류"
 -----
+
+#Answer:
+"""
+
+template_for_unknown = """
+당신은 식재료와 관련된 알러지 성분을 판별하는 전문가입니다. 아주 신중하게 답해주세요
+주어진 원문 텍스트에 해당하는 식재료에 대해서 아래 검색결과를 참고하여 답변해주세요
+알러지 유발 성분이면 '그외[[원문 텍스트]]'라고 답해주세요
+알러지 유발 성분이 아니면 '없음'으로 답해주세요
+'그외','없음' 이외에는 어떠한 답변도 하지마세요
+
+----
+원문 텍스트:
+{raw_text}
+----
+
+----
+검색결과:
+{search_result}
+----
 
 #Answer:
 """
@@ -198,6 +219,9 @@ try:
     prompt_for_allergen = PromptTemplate.from_template(template_for_allergen)
     print("prompt_for_allergen=",prompt_for_allergen)    
 
+    prompt_for_unknown = PromptTemplate.from_template(template_for_unknown)
+    print("prompt_for_unknown=",prompt_for_unknown)     
+    
     llm = ChatOpenAI(
         temperature=0,
         model_name="gpt-4.1",  # 모델명
@@ -206,8 +230,11 @@ try:
     # chain 생성
     chain_for_extract = prompt_for_extract | llm
     chain_for_allergen = prompt_for_allergen | llm  
-    
+    chain_for_unknown = prompt_for_unknown | llm
     print(f"✅ LLM chain 생성 완료)")
+    
+    web_search = TavilySearchResults(max_results=3)
+    print(f"✅ TavilySearchResults 생성 완료)")
 
 except Exception as e:
     print(f"❌ 치명적 오류: 글로벌 설정 실패: {e}")
@@ -495,8 +522,21 @@ def search_and_update_kb(state: AllergyGraphState) -> AllergyGraphState:
             found_category = result_allergen
         else:
             #그외 응답이오면 검색을 해본다
-            #일단 스텝2
-            print("TODO")
+            search_query = f"'{ingredient}'+'알러지'"
+            search_results = web_search.invoke(search_query)
+            
+            search_result = ""
+            for result in search_results:
+                search_result += str(result)
+                
+            print("search_result 결과 길이=",len(search_result))
+            
+            res = chain_for_unknown.invoke({"raw_text":ingredient,"search_result":search_result})
+            result_allergen = res.content
+            print(f"chain_for_unknown result =>\n{result_allergen}")
+            
+            if result_allergen in ALLERGENS_STD_SET:
+                found_category = result_allergen
     else:
         # ✨ [개선 2] LLM 대신, 각 카테고리와 조합하여 연관성을 검색합니다.
         service = build("customsearch", "v1", developerKey=API_KEY)
@@ -564,35 +604,6 @@ def route_fallback_result(state: AllergyGraphState) -> str:
         print(f"  -> [Fallback 결과 불확실]. 'search_and_update_kb'로 이동하여 웹 검색.")
         return "perform_web_search"
 
-
-# === CSV 저장 유틸 (update_final_list 위에 추가) ===
-def save_to_kb_csv(term: str, category: str, path: str = "domestic_allergy_rag_knowledge_1000.csv"):
-    """RAG/NLI로 확정된 매핑을 CSV에 중복 없이 추가"""
-    try:
-        # 이미 같은 매핑 있으면 스킵
-        if os.path.exists(path):
-            try:
-                df = pd.read_csv(path)
-                if not df.empty and ((df["term"] == term) & (df["category"] == category)).any():
-                    return
-                write_header = df.empty
-            except Exception:
-                write_header = True
-        else:
-            write_header = True
-
-        row = pd.DataFrame([{
-            "term": term,
-            "category": category,
-            "description": f"{term}은(는) {category}에 해당하는 성분입니다."
-        }])
-
-        row.to_csv(path, mode="a", index=False, header=write_header, encoding="utf-8-sig")
-    except Exception as e:
-        print(f"❌ CSV 기록 실패: {e}")
-
-
-
 def update_final_list(state: AllergyGraphState) -> AllergyGraphState:
     """
     ✅ 노드 6 (결과 취합 노드)
@@ -604,9 +615,6 @@ def update_final_list(state: AllergyGraphState) -> AllergyGraphState:
         current_set = state['final_allergens']
         print(f"✅ 유효한 알레르기 발견: '{result_allergen}'. 최종 목록에 추가.")
         current_set.add(state['current_ingredient'] + " -> " + result_allergen)
-
-        # RAG/NLI 확정 결과를 CSV에 누적
-        save_to_kb_csv(state['current_ingredient'], result_allergen)
 
         return {**state, "final_allergens": current_set}
     else:
@@ -770,6 +778,7 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # else:
 
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
+
 
 
 
