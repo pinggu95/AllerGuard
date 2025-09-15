@@ -115,7 +115,7 @@ def text_parser_by_llm(raw_text):
 
     ingredient_queue = []
     found_allergens_set = set()
-
+    final_may_contain_set = set()
 
     # json.loads() 함수를 이용해 문자열을 파이썬 딕셔너리로 변환
     json_data = json.loads(res.content)    
@@ -138,9 +138,15 @@ def text_parser_by_llm(raw_text):
                     if ingredient in ALLERGENS_STD_SET:
                         print(f"  -> '{ingredient}'은(는) 표준 알레르기이므로 final_set에 직접 추가.")
                         found_allergens_set.add(ingredient + " -> " + ingredient) 
-                
+        else:
+            # '없음'을 포함하지 않는 재료만 필터링합니다.
+            filtered_ingredients = [ingredient for ingredient in value if ingredient != "없음"]
+            # 만약 필터링된 재료 리스트가 비어있지 않다면 출력합니다.
+            if filtered_ingredients:      
+                for ingredient in filtered_ingredients:     
+                    final_may_contain_set.add(ingredient)
     
-    return ingredient_queue, found_allergens_set
+    return ingredient_queue, found_allergens_set, final_may_contain_set
 
 
 # --- 1. 글로벌 설정: 모델 로드 및 RAG 지식 베이스 캐시 로드 ---
@@ -225,7 +231,9 @@ class AllergyGraphState(TypedDict):
     current_ingredient: str
     rag_result: dict
     final_allergens: Set[str]
+    final_may_contain: Set[str]
     final_output_json: str
+    final_may_json: str
     # 추가부분
     final_error_msg: List[str]  # 에러메시지용
     text_parser: str
@@ -270,6 +278,7 @@ def text_parser_by_regex(raw_text):
 
     ingredient_queue = []
     found_allergens_set = set()
+    final_may_contain_set = set()
 
     match1 = re.search(r"원재료명[ :](.*?)(•|\||영양정보|영양성분|$)", clean_text)
     
@@ -312,7 +321,7 @@ def text_parser_by_regex(raw_text):
     else:
         print("ℹ️ Regex 파서: '...함유' 섹션을 찾지 못함.")
     
-    return ingredient_queue, found_allergens_set
+    return ingredient_queue, found_allergens_set, final_may_contain_set
 
 
 def parse_text_from_raw(state: AllergyGraphState) -> AllergyGraphState:
@@ -337,10 +346,10 @@ def parse_text_from_raw(state: AllergyGraphState) -> AllergyGraphState:
     
     if not text_parser:
         print(f"\n--- (Node 2: parse_text_from_raw) [Regex Parser] ---")
-        ingredient_queue, found_allergens_set = text_parser_by_regex(*params)
+        ingredient_queue, found_allergens_set, final_may_contain_set = text_parser_by_regex(*params)
     elif text_parser in globals():
         print(f"\n--- (Node 2: parse_text_from_raw) [{text_parser}] ---")
-        ingredient_queue, found_allergens_set = globals()[text_parser](*params)
+        ingredient_queue, found_allergens_set, final_may_contain_set = globals()[text_parser](*params)
     else:
         error_message = f"선택한 text_parser={text_parser}가 존재하지 않습니다."
         print(error_message)
@@ -357,7 +366,8 @@ def parse_text_from_raw(state: AllergyGraphState) -> AllergyGraphState:
     return {
         **state,
         "ingredients_to_check": final_queue,      
-        "final_allergens": found_allergens_set 
+        "final_allergens": found_allergens_set,
+        "final_may_contain": final_may_contain_set,
     }
 
 
@@ -608,13 +618,18 @@ def finalize_processing(state: AllergyGraphState) -> AllergyGraphState:
     ✅ 노드 7 (종료 노드)
     """
     print(f"\n--- (Node 7: finalize_processing) ---")
-    final_set = state['final_allergens']
+    final_aller_set = state['final_allergens']
     
-    final_list = sorted(list(final_set))
-    final_json = json.dumps(final_list, ensure_ascii=False)
+    final_aller_list = sorted(list(final_aller_set))
+    final_aller_json = json.dumps(final_aller_list, ensure_ascii=False)
     
-    print(f"🎉 모든 성분 검사 완료. 최종 결과: {final_json}")
-    return {**state, "final_output_json": final_json}
+    final_may_set = state['final_may_contain']
+    
+    final_may_list = sorted(list(final_may_set))
+    final_may_json = json.dumps(final_may_list, ensure_ascii=False)
+    
+    print(f"🎉 모든 성분 검사 완료. 최종 결과: {final_aller_json} \n 혼입가능(같은 제조공정): {final_may_json}")
+    return {**state, "final_output_json": final_aller_json, "final_may_json": final_may_json}
 
 
 # --- 4. LangGraph 엣지(Edge) 함수 정의 ---
@@ -755,6 +770,7 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # else:
 
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
+
 
 
 
