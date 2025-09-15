@@ -123,11 +123,12 @@ def safe_load_allergen_list(final_json_str_or_obj):
 # ===============================
 # A안: "원재료 -> 알레르겐" 패턴 파싱(권장)
 # ===============================
-def build_categories(final_allergens, ingredients, rag_hits, nli_hits,
+def build_categories(final_allergens, final_may_contain, ingredients, rag_hits, nli_hits,
                      rag_warn_low=0.65, rag_warn_high=0.85,
                      nli_warn_low=0.30, nli_warn_high=0.50):
 
     danger_allergens = []
+    maycontain_allergens = []
     mapped_ingredients = set()
 
     # 1) 최종 JSON 정규화: "원재료 -> 알레르겐" 문자열도 해석
@@ -142,7 +143,15 @@ def build_categories(final_allergens, ingredients, rag_hits, nli_hits,
 
     # 중복 제거(순서 보존)
     danger_allergens = list(dict.fromkeys(danger_allergens))
+    
+    # 1) 최종 JSON 정규화: 혼입가능(같은 제조공정) 처리
+    for a in (final_may_contain or []):
+        if a in ALLERGENS_STD_SET:
+            maycontain_allergens.append(a)
 
+    # 중복 제거(순서 보존)
+    maycontain_allergens = list(dict.fromkeys(maycontain_allergens))
+                         
     # 2) 주의(경고) 후보
     warn_from_rag = []
     for ing, sim, al in (rag_hits or []):
@@ -161,7 +170,7 @@ def build_categories(final_allergens, ingredients, rag_hits, nli_hits,
     used_ingredients.update([i.split(" → ")[0].strip() for i in warn_items if "→" in i])
     safe_items = [i for i in (ingredients or []) if i not in used_ingredients]
 
-    return danger_allergens, warn_items, safe_items
+    return danger_allergens, maycontain_allergens, warn_items, safe_items
 
 def _build_pills(items, cls=""):
     if not items:
@@ -244,12 +253,16 @@ def analyze_image(img: Image.Image, do_mirror: bool, auto_mirror: bool, using_ll
                 state = Allerguard_V1.app.invoke({"image_path": tmp_path,"using_llm_api_chk":using_llm_api_chk,"text_parser":parser_type,}, {"recursion_limit": 2000})
             raw_logs = sio.getvalue().strip()
 
-            final_json = state.get("final_output_json", "[]")
-            final_allergens = safe_load_allergen_list(final_json)
+            final_output_json = state.get("final_output_json", "[]")
+            final_allergens = safe_load_allergen_list(final_output_json)
+            
+            final_may_json = state.get("final_may_json", "[]")
+            final_may_contain = safe_load_allergen_list(final_may_json)
+            
             ingredients, rag_hits, nli_hits = parse_logs(raw_logs)
 
         # 결과 요약/표시
-        danger_list, warn_items, safe_items = build_categories(final_allergens, ingredients, rag_hits, nli_hits)
+        danger_list, maycontain_list, warn_items, safe_items = build_categories(final_allergens, final_may_contain, ingredients, rag_hits, nli_hits)
         status = (
             "<div class='summary'>"
             "<div class='left'>"
@@ -265,13 +278,14 @@ def analyze_image(img: Image.Image, do_mirror: bool, auto_mirror: bool, using_ll
         )
 
         danger_html = _build_pills(danger_list, cls="")
+        maycontain_html = _build_pills(maycontain_list, cls="")
         warn_html   = _build_pills(warn_items,   cls="warn")
         safe_html   = _build_pills(safe_items[:20], cls="safe")
 
         json_view_obj = final_allergens
         log_view_html = f"<div class='codebox'>{html.escape(raw_logs or '로그가 없습니다.')}</div>"
 
-        return status, danger_html, warn_html, safe_html, json_view_obj, log_view_html, warn_items
+        return status, danger_html, maycontain_html, warn_html, safe_html, json_view_obj, log_view_html, warn_items
 
     except Exception as e:
         err = f"[ERROR] {str(e)}\n\n" + traceback.format_exc()
@@ -313,7 +327,7 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
                 inp = gr.Image(type="pil", label="성분표 이미지 업로드", height=360)
                 do_mirror_chk = gr.Checkbox(label="좌우반전(미러) 보정", value=False)
                 auto_mirror_chk = gr.Checkbox(label="자동 미러 감지(원본/반전 비교, 2회 실행)", value=False)
-                using_llm_api_chk = gr.Checkbox(label="원재료 19종 분류(LLM API)", value=False)
+                using_llm_api_chk = gr.Checkbox(label="원재료 19종 분류(LLM API)", value=True)
                 with gr.Row():
                     run_btn_by_regex = gr.Button("분석 실행(REGEX)", elem_id="run_btn_by_regex", elem_classes=["run_btn"])
                     run_btn_by_llmapi = gr.Button("분석 실행(LLM API)", elem_id="run_btn_by_llmapi", elem_classes=["run_btn"])
@@ -329,6 +343,10 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
             with gr.Group(elem_classes=["card"]):
                 gr.Markdown("### 위험 (확정 알레르겐)")
                 danger_html = gr.HTML()
+        with gr.Column(scale=4, min_width=320):
+            with gr.Group(elem_classes=["card"]):
+                gr.Markdown("### 혼입가능(같은 제조공정)")
+                maycontain_html = gr.HTML()                   
         with gr.Column(scale=4, min_width=320):
             with gr.Group(elem_classes=["card"]):
                 gr.Markdown("### 주의 (추가 확인 권장)")
@@ -354,14 +372,14 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
     run_btn_by_regex.click(
         fn=analyze_image,
         inputs=[inp, do_mirror_chk, auto_mirror_chk, using_llm_api_chk, parser_type_by_regex],
-        outputs=[status_html, danger_html, warn_html, safe_html, json_view, log_view, warn_state],
+        outputs=[status_html, danger_html, maycontain_html, warn_html, safe_html, json_view, log_view, warn_state],
         api_name="analyze"
     )
     
     run_btn_by_llmapi.click(
         fn=analyze_image,
         inputs=[inp, do_mirror_chk, auto_mirror_chk, using_llm_api_chk, parser_type_by_llm],
-        outputs=[status_html, danger_html, warn_html, safe_html, json_view, log_view, warn_state],
+        outputs=[status_html, danger_html, maycontain_html, warn_html, safe_html, json_view, log_view, warn_state],
         api_name="analyze"
     )
 
@@ -373,3 +391,4 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
 
 if __name__ == "__main__":
     demo.queue().launch(server_name="127.0.0.1", server_port=7860, share=False, inbrowser=True)
+
