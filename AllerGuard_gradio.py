@@ -136,7 +136,10 @@ def build_categories(final_allergens, final_may_contain, ingredients, rag_hits, 
         if isinstance(a, str) and "->" in a:
             src, dst = [s.strip() for s in a.split("->", 1)]
             if dst in ALLERGENS_STD_SET:
-                danger_allergens.append(dst)
+                if src == dst:
+                    danger_allergens.append(dst)
+                else:
+                    danger_allergens.append(a)
                 mapped_ingredients.add(src)  # 안전 목록에서 제외
         elif a in ALLERGENS_STD_SET:
             danger_allergens.append(a)
@@ -391,4 +394,5 @@ with gr.Blocks(title="식품 알레르기 감지 · High Contrast", css=CUSTOM_C
 
 if __name__ == "__main__":
     demo.queue().launch(server_name="127.0.0.1", server_port=7860, share=False, inbrowser=True)
+
 
