@@ -216,7 +216,7 @@ except Exception as e:
 
 # RAG 검색 시 사용할 유사도 임계값 (튜닝된 값으로 가정, 예: 0.85)
 # (만약 0.9로 유지하고 NLI가 '유청단백분말'을 잡도록 하려면 0.9로 설정하세요)
-RAG_CONFIDENCE_THRESHOLD = 0.85
+RAG_CONFIDENCE_THRESHOLD = 0.90
 print(f"ℹ️ RAG 신뢰도 임계값: {RAG_CONFIDENCE_THRESHOLD}")
 
 # NLI Fallback 결과가 유효하다고 인정할 최소 점수
@@ -770,6 +770,7 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # else:
 
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
+
 
 
 
