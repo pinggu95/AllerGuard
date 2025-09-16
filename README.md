@@ -5,7 +5,7 @@
 - **프로젝트 기간:** 2025.09.03 ~ 2025.09.16
 - **일자(기획서 기준):** 2025.08.29
 - **팀장:** 차지예
-- **구성원(가나다순):** 김광무, 김소은, 정주환, 정형웅, 차지예
+- **구성원(가나다순):** 김광무, 정주환, 정형웅, 차지예
 - **프로젝트명:** **AllerGuard**
 - **주제:** VLM을 이용한 **식품 라벨 사진에서 알레르기 자동 판별 및 경고** 개발
 
@@ -45,3 +45,19 @@ AllerGuard는 사용자가 촬영/업로드한 **식품 라벨 이미지**를 �
 - **서비스/UI:** Gradio(프로토타입), FastAPI/Streamlit(선택)
 - **배포/협업:** Hugging Face Hub, Git/GitHub
 - **기타:** 이미지 전처리(OpenCV/Pillow), 텍스트 정규화
+- **최종모델**
+  - OCR : GCP OCR API
+  - NLI : klue/roberta-base
+  - LLM : OpenAI GPT-4.1
+  - Search : Tavily
+  - UI : Gradio
+  - Framework : LangGraph, LangChain, sentence_transformers, google.cloud, Pandas, Numpy 
+
+---
+
+## 소스설명
+- **AllerGuard_gradio.py:** Gradio UI
+- **Allerguard_V1.py:** 메인 소스 코드
+- **domestic_allergy_rag_knowledge_1000.csv:** 선수집된 알러지 성분 사전
+- **20250916_테스트_및_검증용_식품_라벨링.xlsx**
+
