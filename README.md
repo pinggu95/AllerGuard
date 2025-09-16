@@ -61,3 +61,8 @@ AllerGuard는 사용자가 촬영/업로드한 **식품 라벨 이미지**를 �
 - **domestic_allergy_rag_knowledge_1000.csv:** 선수집된 알러지 성분 사전
 - **20250916_테스트_및_검증용_식품_라벨링.xlsx**
 
+---
+
+## LangGraph visualized (feat : langchain_teddynote)
+<img width="675" height="1024" alt="image" src="https://github.com/user-attachments/assets/ec320144-68ee-44a1-b1d9-433f14893f98" />
+
