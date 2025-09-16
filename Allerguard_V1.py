@@ -24,7 +24,7 @@ from langchain_openai import ChatOpenAI
 from langchain_community.tools import TavilySearchResults
 
 # .env 파일에서 환경 변수를 로드합니다.
-load_dotenv()
+load_dotenv()  # 런팟의 경우 파일명 지정 './file.env'
 
 
 print("--- 🚀 알레르기 분석 서비스 (GCP Vision API + RAG + LLM Fallback) 시작 ---")
@@ -512,7 +512,7 @@ def search_and_update_kb(state: AllergyGraphState) -> AllergyGraphState:
         return state
 
     found_category = None
-    if state['using_llm_api_chk']:
+    if state.get('using_llm_api_chk', False):
         ## check가 된 경우 llm api를 분류에 이용해본다
         res = chain_for_allergen.invoke({"raw_text":ingredient})
         result_allergen = res.content
@@ -631,7 +631,7 @@ def finalize_processing(state: AllergyGraphState) -> AllergyGraphState:
     final_aller_list = sorted(list(final_aller_set))
     final_aller_json = json.dumps(final_aller_list, ensure_ascii=False)
     
-    final_may_set = state['final_may_contain']
+    final_may_set = state.get('final_may_contain', set())
     
     final_may_list = sorted(list(final_may_set))
     final_may_json = json.dumps(final_may_list, ensure_ascii=False)
@@ -767,8 +767,11 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # my_test_image_file = "image.jpg" # 👈 'image.jpg'는 OCR 로그를 제공한 그 이미지 파일 가정
 
 # if my_test_image_file:
-#     test_input = {"image_path": my_test_image_file}
-#     print(f"테스트 실행 시작: {my_test_image_file}\n")
+#     test_input = {"image_path": my_test_image_file}    # regex 
+#     test_input = {"image_path": my_test_image_file, "using_llm_api_chk": True}    # 19분류+REGEX 
+#     test_input = {"image_path": my_test_image_file, "text_parser":"parser_type_by_llm", "using_llm_api_chk": True}    # 19분류+LLM 
+
+#     print(f"테스트 실행 시작: {my_test_image_file}\n")   
 
 #     print("\n--- [Test Run: 최종 결과 (invoke)] ---")
 #     final_state = app.invoke(test_input, {"recursion_limit": 100}) 
@@ -778,11 +781,4 @@ print("\n\n--- [Test Run: GCP API + Regex 파서 + NLI Fallback 기반 실행] -
 # else:
 
 #     print("\n테스트 실행 건너뜀: 'my_test_image_file' 변수에 이미지 경로가 지정되지 않았습니다.")
-
-
-
-
-
-
-
 
